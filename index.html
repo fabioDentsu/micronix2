@@ -612,90 +612,133 @@
   /* =========================
      GAMEPAD SUPPORT (DualSense/standard mapping)
      ========================= */
-  const gamepadState = {
-    gp: null,
-    prevButtons: [],
-    cx: 0, cy: 0,    // cursor in canvas (device pixels)
-    visible: false
+  /* =========================
+   GAMEPAD SUPPORT (DualSense/standard/quirky mappings)
+   ========================= */
+const gamepadState = {
+  gp: null,
+  prevButtons: [],
+  cx: 0, cy: 0,
+  visible: false,
+  // per-stick baselines to cancel drift
+  baseline: { Lx: 0, Ly: 0, Rx: 0, Ry: 0 },
+  calibrated: false
+};
+
+function pickGamepad(){
+  const pads = navigator.getGamepads ? navigator.getGamepads() : [];
+  for (const p of pads) if (p && p.connected) return p;
+  return null;
+}
+addEventListener('gamepadconnected', () => {
+  gamepadState.gp = pickGamepad();
+  gamepadState.visible = true;
+  calibrateSticks(true);
+});
+addEventListener('gamepaddisconnected', () => { gamepadState.gp = null; gamepadState.visible = false; });
+
+function initGamepadCursor(){
+  gamepadState.cx = game.width/2;
+  gamepadState.cy = game.height/2;
+}
+initGamepadCursor(); addEventListener('resize', initGamepadCursor);
+
+/* --- Calibration: sample current neutral and store as baseline --- */
+function calibrateSticks(centerCursor=false){
+  const gp = gamepadState.gp || pickGamepad();
+  if(!gp) return;
+  const a = gp.axes || [];
+  // fallbacks if array shorter on some browsers
+  const Lx = a[0] ?? 0, Ly = a[1] ?? 0, Rx = a[2] ?? 0, Ry = a[3] ?? 0;
+  gamepadState.baseline = { Lx, Ly, Rx, Ry };
+  gamepadState.calibrated = true;
+  if(centerCursor) initGamepadCursor();
+}
+
+/* Utility */
+function edgePressed(i, buttons, prev){
+  const pressed = !!buttons[i]?.pressed;
+  const was = !!prev[i];
+  return pressed && !was;
+}
+
+function synthClickAtCanvas(xDP, yDP){
+  const rect = game.getBoundingClientRect();
+  const clientX = rect.left + (xDP / DPR);
+  const clientY = rect.top  + (yDP / DPR);
+  onPress({ clientX, clientY });
+}
+
+function handleGamepad(dtMs){
+  const gp = gamepadState.gp || pickGamepad();
+  if(!gp) return;
+  gamepadState.gp = gp;
+  gamepadState.visible = true;
+
+  const btn = gp.buttons || [];
+  const ax  = gp.axes || [];
+  const dt  = Math.min(dtMs, 50) / 1000;
+
+  // --- Allow starting the game from controller ---
+  if (!running && (btn[0]?.pressed || btn[9]?.pressed)) { startGame(); }
+
+  // --- Recalibrate if needed: press L3 (10) or Options (9) ---
+  if (edgePressed(10, btn, gamepadState.prevButtons) || edgePressed(9, btn, gamepadState.prevButtons)) {
+    calibrateSticks(true);
+  }
+  if (!gamepadState.calibrated) calibrateSticks(false);
+
+  // Read both sticks, subtract baseline (cancels drift and weird -1 idle)
+  const Lx = (ax[0] ?? 0) - gamepadState.baseline.Lx;
+  const Ly = (ax[1] ?? 0) - gamepadState.baseline.Ly;
+  const Rx = (ax[2] ?? 0) - gamepadState.baseline.Rx;
+  const Ry = (ax[3] ?? 0) - gamepadState.baseline.Ry;
+
+  // Pick the stick with larger magnitude (covers devices that swap indices)
+  const magL = Math.hypot(Lx, Ly);
+  const magR = Math.hypot(Rx, Ry);
+  let sx = magL >= magR ? Lx : Rx;
+  let sy = magL >= magR ? Ly : Ry;
+
+  // Deadzone + soft curve
+  const DZ = 0.18;
+  const shape = v => {
+    const s = Math.sign(v), a = Math.abs(v);
+    if (a < DZ) return 0;
+    const t = (a - DZ) / (1 - DZ);
+    return s * t * t; // quadratic for fine control near center
   };
-  function pickGamepad(){
-    const pads = navigator.getGamepads ? navigator.getGamepads() : [];
-    for (const p of pads) if (p && p.connected) return p;
-    return null;
-  }
-  addEventListener('gamepadconnected', () => { gamepadState.gp = pickGamepad(); gamepadState.visible = true; });
-  addEventListener('gamepaddisconnected', () => { gamepadState.gp = null; gamepadState.visible = false; });
+  sx = shape(sx); sy = shape(sy);
 
-  function initGamepadCursor(){
-    gamepadState.cx = game.width/2;
-    gamepadState.cy = game.height/2;
-  }
-  initGamepadCursor(); addEventListener('resize', initGamepadCursor);
+  // Some stacks report huge bogus values briefly; clamp hard
+  sx = clamp(sx, -1, 1);
+  sy = clamp(sy, -1, 1);
 
-  function edgePressed(i, buttons, prev){
-    const pressed = !!buttons[i]?.pressed;
-    const was = !!prev[i];
-    return pressed && !was;
-  }
+  // Move cursor
+  const speed = 1100 * DPR; // px/sec
+  gamepadState.cx = clamp(gamepadState.cx + sx * speed * dt, 0, game.width);
+  gamepadState.cy = clamp(gamepadState.cy + sy * speed * dt, 0, game.height);
 
-  function synthClickAtCanvas(xDP, yDP){
-    const rect = game.getBoundingClientRect();
-    const clientX = rect.left + (xDP / DPR);
-    const clientY = rect.top  + (yDP / DPR);
-    onPress({ clientX, clientY });
-  }
+  // D-pad as digital nudge (12/13/14/15)
+  const nudge = 420 * DPR * dt;
+  if (btn[12]?.pressed) gamepadState.cy = clamp(gamepadState.cy - nudge, 0, game.height);
+  if (btn[13]?.pressed) gamepadState.cy = clamp(gamepadState.cy + nudge, 0, game.height);
+  if (btn[14]?.pressed) gamepadState.cx = clamp(gamepadState.cx - nudge, 0, game.width);
+  if (btn[15]?.pressed) gamepadState.cx = clamp(gamepadState.cx + nudge, 0, game.width);
 
-  function handleGamepad(dtMs){
-    const gp = gamepadState.gp || pickGamepad();
-    if(!gp) return;
-    gamepadState.gp = gp;
-    gamepadState.visible = true;
+  // Actions
+  if (edgePressed(0, btn, gamepadState.prevButtons)) synthClickAtCanvas(gamepadState.cx, gamepadState.cy); // Cross
+  if (edgePressed(2, btn, gamepadState.prevButtons)) btnInfect.onclick(); // Square
+  if (edgePressed(3, btn, gamepadState.prevButtons)) btnPain.onclick();   // Triangle
+  if (edgePressed(4, btn, gamepadState.prevButtons)) btnShield.onclick(); // L1
+  if (edgePressed(5, btn, gamepadState.prevButtons)) btnSlowmo.onclick(); // R1
+  if (edgePressed(9, btn, gamepadState.prevButtons)) pauseBtn.onclick();  // Options
+  if (edgePressed(8, btn, gamepadState.prevButtons)) restartBtn.onclick();// Create/Share
 
-    const dt = Math.min(dtMs, 50) / 1000; // seconds
-    const ax = gp.axes || [];
-    const btn = gp.buttons || [];
-    const dead = 0.15;
-    const dz = v => Math.abs(v) < dead ? 0 : v;
+  gamepadState.prevButtons = btn.map(b => !!b?.pressed);
+}
+/* ========================= */
 
-    // Left stick drives cursor
-    const vx = dz(ax[0] || 0);
-    const vy = dz(ax[1] || 0);
-    const speed = 1100 * DPR; // px/sec in canvas pixels
-    gamepadState.cx = clamp(gamepadState.cx + vx * speed * dt, 0, game.width);
-    gamepadState.cy = clamp(gamepadState.cy + vy * speed * dt, 0, game.height);
-
-    // D-pad (12 up, 13 down, 14 left, 15 right) nudges cursor
-    const nudge = 420 * DPR * dt;
-    if (btn[12]?.pressed) gamepadState.cy = clamp(gamepadState.cy - nudge, 0, game.height);
-    if (btn[13]?.pressed) gamepadState.cy = clamp(gamepadState.cy + nudge, 0, game.height);
-    if (btn[14]?.pressed) gamepadState.cx = clamp(gamepadState.cx - nudge, 0, game.width);
-    if (btn[15]?.pressed) gamepadState.cx = clamp(gamepadState.cx + nudge, 0, game.width);
-
-    // Cross (X) -> tap
-    if (edgePressed(0, btn, gamepadState.prevButtons)){
-      synthClickAtCanvas(gamepadState.cx, gamepadState.cy);
-    }
-    // Circle (O) -> toggle settings panel (optional quality-of-life)
-    if (edgePressed(1, btn, gamepadState.prevButtons)){
-      const collapsed = controls.box.classList.contains('collapsed');
-      if (collapsed) controls.box.classList.remove('collapsed'); else controls.box.classList.add('collapsed');
-    }
-    // Square -> Disinfection
-    if (edgePressed(2, btn, gamepadState.prevButtons)) btnInfect.onclick();
-    // Triangle -> Pain relief (full energy)
-    if (edgePressed(3, btn, gamepadState.prevButtons)) btnPain.onclick();
-    // L1 -> Shield
-    if (edgePressed(4, btn, gamepadState.prevButtons)) btnShield.onclick();
-    // R1 -> Slow motion
-    if (edgePressed(5, btn, gamepadState.prevButtons)) btnSlowmo.onclick();
-    // Options -> Pause/Resume
-    if (edgePressed(9, btn, gamepadState.prevButtons)) pauseBtn.onclick();
-    // Create/Share -> Restart (from running state shows overlay)
-    if (edgePressed(8, btn, gamepadState.prevButtons)) restartBtn.onclick();
-
-    // Save button states for edge detection
-    gamepadState.prevButtons = btn.map(b => !!b?.pressed);
-  }
   /* ========================= */
 
   // loop
