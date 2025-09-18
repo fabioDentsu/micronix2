@@ -1,0 +1,673 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Micronix – Enhanced</title>
+<style>
+  :root{ --ui-bg: rgba(12,22,36,.45); --glass: rgba(255,255,255,.12); --accent: #f0d83b; }
+  *{box-sizing:border-box} html,body{height:100%}
+  body{
+    margin:0; overflow:hidden; font-family: ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Arial; color:#eaf6ff;
+    background:
+      radial-gradient(1200px 800px at 10% 10%, #0aa0d6 0%, rgba(10,160,214,0) 60%),
+      radial-gradient(900px 900px at 80% 20%, #0574b8 0%, rgba(5,116,184,0) 55%),
+      radial-gradient(1100px 900px at 30% 80%, #003a6e 0%, rgba(0,58,110,0) 60%),
+      linear-gradient(180deg, #00314f 0%, #001a2e 100%);
+  }
+  .stage{position:fixed; inset:0; width:100%; height:100%}
+  #bg{filter:blur(2px) saturate(120%)} #fx{pointer-events:none}
+
+  /* Utility glass tile */
+  .tile{position:fixed; z-index:6; background:var(--ui-bg); border:1px solid rgba(255,255,255,.18);
+    backdrop-filter: blur(10px) saturate(140%); border-radius:14px; box-shadow:0 10px 30px rgba(0,0,0,.35)}
+
+  .logo.bl{left:14px; bottom:14px; padding:10px 12px}
+  .logo.bl img{display:block; height:30px; width:auto}
+
+  /* Game logo (center top) */
+  .gameLogo{position:fixed; top:10px; left:50%; transform:translateX(-50%); z-index:7; pointer-events:none;}
+  .gameLogo img{height:80px; width:auto; display:block; filter:drop-shadow(0 8px 22px rgba(0,0,0,.35))}
+
+  /* HUD (center top under game logo) */
+  .hud{
+    position:fixed; left:50%; transform:translateX(-50%); top:110px; display:flex; gap:10px; align-items:center;
+    padding:10px 14px; border-radius:16px; background:var(--ui-bg); backdrop-filter: blur(10px) saturate(140%);
+    border:1px solid rgba(255,255,255,.14); box-shadow:0 10px 30px rgba(0,0,0,.35); z-index:6; flex-wrap:wrap;
+  }
+  .pill{display:flex; align-items:center; gap:8px; padding:8px 12px; border-radius:999px; background:var(--glass);
+    border:1px solid rgba(255,255,255,.18); font-weight:700}
+  .label{opacity:.75; font-weight:600} .value{font-variant-numeric: tabular-nums}
+  .thinBar{position:relative; width:60px; height:8px; border-radius:999px; overflow:hidden; background:rgba(255,255,255,.12); border:1px solid rgba(255,255,255,.18)}
+  .thinBar>i{position:absolute; inset:0; transform-origin:left center; background:linear-gradient(90deg,#7ed3ff,#8ef6a0)}
+
+  /* Right powers panel (includes Score + Time) */
+  .powers{
+    position:fixed; right:14px; top:86px; z-index:6; display:flex; flex-direction:column; gap:10px;
+    padding:12px; border-radius:16px; background:var(--ui-bg); border:1px solid rgba(255,255,255,.18);
+    backdrop-filter: blur(10px); box-shadow:0 10px 30px rgba(0,0,0,.35); min-width:260px;
+  }
+  .sideHead{display:flex; align-items:center; gap:12px}
+  .badge{padding:6px 10px; border-radius:999px; background:var(--glass); border:1px solid rgba(255,255,255,.18); font-weight:800}
+  .timeBig{margin-left:auto; font-size:22px; font-weight:800; letter-spacing:.4px; min-width:44px; text-align:right}
+
+  /* Neon glassmorphism power buttons */
+  .power{
+    position:relative; border:none; padding:12px 18px; border-radius:999px; font-weight:800; color:#eaf6ff;
+    background:linear-gradient(135deg,rgba(255,255,255,.16),rgba(255,255,255,.06));
+    backdrop-filter: blur(8px); letter-spacing:.2px; isolation:isolate; overflow:hidden;
+    box-shadow: inset 0 0 0 1px rgba(255,255,255,.15);
+    transition: transform .12s ease, box-shadow .12s ease, filter .12s ease;
+  }
+  .power:before,.power:after{content:""; position:absolute; inset:-40%; border-radius:50%; filter:blur(22px); z-index:-1; opacity:.85}
+  .power:hover{transform:translateY(-1px);filter:saturate(2.1)}
+  .power:active{transform:translateY(0) scale(.98); filter:saturate(5.1)}
+  .power.pain:before{background:radial-gradient(closest-side,#ff4d8d,#ff2f6b22);} .power.pain:after {background:conic-gradient(from 140deg,#ff6aa7aa,#ff2f6b00 40%); mix-blend-mode:screen}
+  .power.infect:before{background:radial-gradient(closest-side,#3ad0ff,#1eb1ff22);} .power.infect:after {background:conic-gradient(from 140deg,#5ddfffaa,#1eb1ff00 40%); mix-blend-mode:screen}
+  .power.shield:before{background:radial-gradient(closest-side,#8ef6a0,#35e67e22);} .power.shield:after {background:conic-gradient(from 120deg,#b2ffd1aa,#35e67e00 40%); mix-blend-mode:screen}
+  .power.slowmo:before{background:radial-gradient(closest-side,#ffd166,#ffb70322);} .power.slowmo:after {background:conic-gradient(from 120deg,#ffe29faa,#ffb70300 40%); mix-blend-mode:screen}
+  .cooldown{opacity:.55; filter:saturate(.6) grayscale(.18)}
+  .btn{cursor:pointer; border:none; padding:10px 40px; border-radius:12px; font-weight:800; color:#06253a; background:var(--accent)}
+  .btn.ghost{background:transparent; color:#d1eaff; border:1px solid rgba(255,255,255,.22)} .btn.small{padding:8px 10px; font-size:13px}
+  .btn.ghost:hover{background: rgba(67, 224, 15, 0.22); color:#d1eaff; border:1px solid rgba(67, 224, 15, 0.62)} .btn.small{padding:8px 10px; font-size:13px}
+
+  /* Settings (left) – collapsible */
+  .settings{
+    position:fixed; left:14px; top:50%; transform:translateY(-50%); width:min(92vw,340px); z-index:9;
+    background:var(--ui-bg); border:1px solid rgba(255,255,255,.18); border-radius:16px; padding:12px; backdrop-filter: blur(10px); box-shadow:0 14px 40px rgba(0,0,0,.4);
+    transition: transform .22s ease, opacity .22s ease;
+  }
+  .settings.collapsed{ transform:translate(-110%, -50%); opacity:.0; }
+  .settings h3{margin:4px 2px 10px}
+  .field{display:grid; grid-template-columns: 1fr auto; gap:8px; align-items:center; margin:8px 0}
+  .field label{font-size:13px; opacity:.9} .field output{font-variant-numeric: tabular-nums}
+  input[type=range]{width:100%} .settings .row{justify-content:space-between}
+  .btn.applied{background:#39e68b; color:#06321f}
+
+  /* Hamburger (replaces .logo.tl) */
+  .hamburger{
+    position:fixed; top:14px; left:14px; z-index:7; width:46px; height:46px; border-radius:12px; border:1px solid rgba(255,255,255,.18);
+    background:var(--ui-bg); backdrop-filter: blur(10px) saturate(140%); display:grid; place-items:center; cursor:pointer; box-shadow:0 10px 30px rgba(0,0,0,.35);
+  }
+  .hamburger i,.hamburger i:before,.hamburger i:after{content:""; display:block; width:22px; height:2px; background:#eaf6ff;  transition:transform .2s ease, opacity .2s ease}
+  .hamburger i:before{transform:translateY(-6px)} .hamburger i:after{transform:translateY(6px)}
+  .hamburger[aria-expanded="true"] i{background:transparent}
+  .hamburger[aria-expanded="true"] i:before{transform:rotate(45deg)} .hamburger[aria-expanded="true"] i:after{transform:rotate(-45deg)}
+
+  /* Bottom-right: Coach + Energy */
+  .rightStack{
+    position:fixed; right:18px; bottom:18px; z-index:6; display:flex; flex-direction:row-reverse; align-items:flex-end; gap:12px;
+  }
+  .coach{display:flex; align-items:center; justify-content:center; width:min(40vw, 420px); height:min(38vh, 360px);} .coach img{max-width:100%; max-height:100%; object-fit:contain; display:block; transform:scale(1.35); transition:opacity .35s}
+  .coach img.fade{opacity:0}
+  .energy{width:34px; height:min(38vh, 300px); border-radius:30px; padding:2px; background:var(--ui-bg); border:1px solid rgba(255,255,255,.18); backdrop-filter: blur(8px); display:flex; align-items:flex-end; box-shadow:0 10px 30px rgba(0,0,0,.35);} .energy i{display:block; width:100%; height:100%; border-radius:38px; transform-origin:bottom center; transform:scaleY(1); background:#41d36a;}
+
+  /* Info bubble — aligned to right above character */
+  .bubble{
+    position:fixed; right:18px; bottom:calc(18px + 300px + 16px); max-width:min(40vw, 420px);
+    background:var(--ui-bg); border:1px solid rgba(255,255,255,.18); backdrop-filter: blur(10px);
+    border-radius:16px; padding:14px 16px; font-size:15px; box-shadow:0 12px 30px rgba(0,0,0,.35); opacity:.98; z-index:6; display:none;
+  }
+  .bubble b{display:block; font-size:18px; margin-bottom:4px}
+
+  /* Overlays */
+  .card{position:fixed; inset:0; display:grid; place-items:center; pointer-events:none; z-index:7}
+  .panel{pointer-events:auto; min-width:min(92vw,560px); background:var(--ui-bg); border:1px solid rgba(255,255,255,.18);
+    backdrop-filter: blur(12px) saturate(160%); border-radius:20px; padding:22px; text-align:center; box-shadow:0 20px 60px rgba(0,0,0,.45)}
+  .panel h1{margin:2px 0 10px; font-size:28px} .panel p{margin:6px 0 14px; opacity:.85}
+  .row{display:flex; justify-content:center; gap:10px; margin-top:10px}
+
+  /* ---------- Responsive ---------- */
+  @media (max-width: 1024px){ .gameLogo img{height:64px} .hud{top:88px} .powers{min-width:240px; top:74px} }
+  @media (max-width: 720px){
+    .gameLogo img{height:44px}
+    .pill {width: auto;}
+    .hud{top:64px; gap:8px; padding:8px 10px; left: 105px; width: 220px; font-size: 10pt;}
+    .thinBar{width:120px}
+    #LS-pill {width: 180px;}
+    .powers{right:12px; top:64px; min-width:150px; padding:8px}
+    .power{padding:10px 5px; width: 110px;}
+    .timeBig{font-size:18px; min-width:38px}
+    .rightStack{right:12px; bottom:12px; gap:10px}
+    .coach{width:min(55vw, 300px); height:min(32vh, 240px)}
+    .energy{width:16px; height:min(22vh, 120px); border-radius:16px}
+    .bubble{}
+    .settings{width:min(92vw, 340px)}
+    .settings.collapsed{transform:translate(-110%, -50%); opacity:0}
+    .coach{margin-right: 230px;width: 150px; margin-bottom: -40px;}
+    .logo.bl.tile{position: relative;opacity: 1; margin-left:64%; margin-top: 30px; width: 125px; }
+    .logo.bl img{width: 100px;height: auto;right: 0px;}
+    .sideHead {font-size: 8pt;}
+    .timeBig {font-size: 10pt;}
+    .bubble{ position:fixed; right:40px; bottom:10px; max-width:min(56vw, 640px);}
+    .row {margin-top: 3px; }
+    .thinBar{position:relative; width:200px; height:8px; border-radius:999px; overflow:hidden;}
+  }
+
+  /* ========================= */
+  /* MOBILE LAYOUT — HUD + POWERS ONLY */
+  /* ========================= */
+  @media (max-width: 720px){
+    .hud{ position:fixed; top:64px; left:14px; right:14px; transform:none; display:flex; align-items:center; gap:8px; padding:8px 10px; border-radius:12px; width:auto; max-width:none; font-size:10px; }
+    .hud .pill{ padding:6px 8px }
+    .hud .pill .label{ display:none }
+    .hud .pill:first-child::before{ content:"Lv"; opacity:.75; font-weight:600; margin-right:6px; }
+    #LS-pill::before{ content:"XP"; opacity:.75; font-weight:600; margin-right:6px; }
+    .hud .thinBar{ width:96px; height:6px }
+
+    .powers{ position:fixed; left:14px; right:14px; top:112px; min-width:0; width:auto; padding:8px; border-radius:12px; gap:8px; display:grid; grid-template-columns: auto 1fr auto auto; grid-template-rows: auto auto auto; grid-template-areas:
+      "badge .    pause   restart"
+      "time  .    pain    infect"
+      ".     .    slowmo  shield"; align-items:center; }
+
+    .sideHead{ display:contents }
+    .row{ display:contents }
+    .badge{ grid-area:badge; padding:4px 8px; font-weight:700 }
+    .timeBig{ grid-area:time; justify-self:center; font-size:22px; font-weight:800; min-width:auto; }
+    #pauseBtn{ grid-area:pause }
+    #restartBtn{ grid-area:restart }
+    .power.pain{ grid-area:pain }
+    .power.infect{ grid-area:infect }
+    .power.shield{ grid-area:shield }
+    .power.slowmo{ grid-area:slowmo }
+
+    .power{ padding:8px 10px; font-size:12px; border-radius:12px }
+    .btn.small{ padding:6px 10px; font-size:12px }
+  }
+  @media (max-width: 480px){ .hud{ font-size:9px; padding:6px 8px; gap:6px } .hud .thinBar{ width:84px } .powers{ padding:7px; gap:6px; top:108px } .badge{ font-size:10px; padding:3px 6px } .timeBig{ font-size:20px } .power{ padding:7px 9px; font-size:11px } .btn.small{ padding:6px 8px; font-size:11px } }
+
+  /* Shield visual ring */
+  .shieldRing{ position:fixed; inset:8px; border-radius:24px; pointer-events:none; box-shadow:0 0 0 4px rgba(62,255,170,.35), 0 0 40px 12px rgba(62,255,170,.16) inset; opacity:0; transition:opacity .2s ease; z-index:8; }
+  .shieldRing.on{ opacity:1; }
+</style>
+</head>
+<body>
+  <canvas id="bg" class="stage"></canvas>
+  <canvas id="game" class="stage"></canvas>
+  <canvas id="fx" class="stage"></canvas>
+
+  <button class="hamburger" id="menuBtn" aria-expanded="false" aria-controls="settings"><i></i></button>
+  <div class="logo bl tile"><img src="AIS.png" alt="AIS Logo"></div>
+  <div class="gameLogo"><img src="micronix.png" alt="Micronix"></div>
+
+  <!-- HUD (center top) -->
+  <div class="hud" id="hud">
+    <div class="pill"><span class="label">Level</span><span class="value" id="level">1</span></div>
+    <div class="pill" id="LS-pill" >
+      <span class="label">Score</span>
+      <div class="thinBar" style="margin:0 8px;"><i id="nextFill" style="transform:scaleX(0)"></i></div>
+      <span class="value" id="nextText">0 / 150</span>
+    </div>
+    <div class="pill" id="comboPill"><span class="label">Combo</span><span class="value" id="comboVal">x0</span></div>
+  </div>
+
+  <!-- Powers panel (right) -->
+  <div class="powers">
+    <div class="sideHead">
+      <div class="badge">Bacteria: <span id="score">0</span></div>
+      <div class="timeBig" id="timeBig">60</div>
+    </div>
+    <button class="power pain"   id="btnPain">Pain relief</button>
+    <button class="power infect" id="btnInfect">Disinfection</button>
+    <button class="power shield" id="btnShield" title="Temporary energy freeze">Shield</button>
+    <button class="power slowmo" id="btnSlowmo" title="Slow motion">Slow Motion</button>
+    <div class="row" style="gap:5px">
+      <button class="btn small" id="pauseBtn" >Pause</button>
+      <button class="btn small ghost" id="restartBtn">Restart</button>
+    </div>
+  </div>
+
+  <!-- Settings (left) -->
+  <aside class="settings" id="settings">
+    <h3>Settings</h3>
+    <div class="field"><label for="sizeMin">Min Size (px)</label><output id="sizeMinOut">56</output><input id="sizeMin" type="range" min="32" max="120" step="2" value="56"></div>
+    <div class="field"><label for="sizeMax">Max Size (px)</label><output id="sizeMaxOut">120</output><input id="sizeMax" type="range" min="48" max="160" step="2" value="120"></div>
+    <div class="field"><label for="speedMul">Speed Multiplier</label><output id="speedMulOut">0.4x</output><input id="speedMul" type="range" min="0.2" max="2.0" step="0.05" value="0.4"></div>
+    <div class="field"><label for="spawnR">Spawn Rate (germs/sec)</label><output id="spawnROut">0.80</output><input id="spawnR" type="range" min="0.4" max="5" step="0.05" value="0.80"></div>
+    <div class="field"><label for="maxConc">Max Concurrent</label><output id="maxConcOut">40</output><input id="maxConc" type="range" min="10" max="160" step="5" value="40"></div>
+    <div class="field"><label for="timeLimit">Time Limit (sec)</label><output id="timeLimitOut">75</output><input id="timeLimit" type="range" min="20" max="120" step="5" value="75"></div>
+    <div class="field"><label for="twoP">2‑Player (split screen)</label><output id="twoPOut">Off</output><input id="twoP" type="range" min="0" max="1" step="1" value="0"></div>
+    <div class="row"><button class="btn" id="applyBtn">Apply</button><button class="btn ghost" id="toggleBtn">Close</button></div>
+  </aside>
+
+  <!-- Bottom-right -->
+  <div class="rightStack">
+    <div class="energy"><i id="energyFill"></i></div>
+    <div class="coach" id="coachBox"><img id="coachImg" src="normal.png" alt="Coach"></div>
+  </div>
+
+  <!-- Info bubble -->
+  <div class="bubble" id="bubble"><b>Hygiene tip</b><span id="tipText">Washing hands and avoiding face-touching lowers the chance of spreading germs.</span></div>
+
+  <!-- Shield visual cue -->
+  <div class="shieldRing" id="shieldRing"></div>
+
+  <!-- Overlays -->
+  <div class="card" id="overlay">
+    <div class="panel" id="startPanel">
+      <h1>Micronix</h1>
+      <p>Squash germs to score. Use your powers. Keep your energy up. Earn combos and achievements.</p>
+      <div class="row"><button class="btn" id="startBtn">Start</button></div>
+    </div>
+    <div class="panel" id="levelPanel" style="display:none">
+      <h1 id="levelTitle">Level Up!</h1>
+      <p>Great job! Difficulty will increase. New perks may unlock.</p>
+      <img id="levelImg" src="levelvid.webp" alt="Level Animation" style="max-width:260px; width:60%; display:block; margin:8px auto 2px;border-radius:20px;">
+      <div class="row"><button class="btn" id="nextLevelBtn">Start Next Level</button></div>
+    </div>
+    <div class="panel" id="bossPanel" style="display:none">
+      <h1>Boss Level</h1>
+      <p>Defeat the colony core! Avoid blasts, squash minions, and keep combo high.</p>
+      <div class="row"><button class="btn" id="startBossBtn">Start Boss</button></div>
+    </div>
+    <div class="panel" id="gameOverPanel" style="display:none">
+      <h1 id="gameOverTitle">Time Up!</h1>
+      <p><span id="finalScore">0</span> pts • Reached Level <span id="finalLevel">1</span></p>
+      <p id="twoPResult" style="display:none"></p>
+      <img id="lostImg" src="lost-vid.webp" alt="Energy Lost" style="max-width:260px; width:60%; display:none; margin:8px auto 2px; border-radius:20px;">
+      <div class="row">
+        <button class="btn" id="playAgainBtn">Play Again</button>
+        <button class="btn ghost" id="closePanelBtn">Close</button>
+      </div>
+    </div>
+  </div>
+
+<script>
+(() => {
+  const DPR = Math.max(1, Math.min(2, window.devicePixelRatio || 1));
+  const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+  const rand = (a, b) => a + Math.random() * (b - a);
+  const pick = arr => arr[(Math.random()*arr.length)|0];
+
+  const bg = document.getElementById('bg');
+  const game = document.getElementById('game');
+  const fx = document.getElementById('fx');
+  const bgx = bg.getContext('2d');
+  const gtx = game.getContext('2d');
+  const fxx = fx.getContext('2d');
+
+  function sizeCanvases(){
+    [bg, game, fx].forEach(c=>{
+      c.width = Math.floor(innerWidth * DPR);
+      c.height = Math.floor(innerHeight * DPR);
+      c.style.width = innerWidth+'px';
+      c.style.height = innerHeight+'px';
+    });
+  }
+  sizeCanvases(); addEventListener('resize', sizeCanvases);
+
+  // assets
+  const imgGreen = new Image(); imgGreen.src = 'bacteria.png';
+  const imgGreenDead  = new Image(); imgGreenDead.src  = 'bacteria-dead.png';
+  const imgRed   = new Image(); imgRed.src = 'bacteria-Infla.png';
+  const imgRedDead  = new Image(); imgRedDead.src  = 'bacteria-infla-dead.png';
+  const bossImg = new Image(); bossImg.src = 'boss.png';
+  const bossSadImg = new Image(); bossSadImg.src = 'boss-sad.png';
+  // optional variants — guard readiness so missing files don't break
+  const imgGold = new Image(); let goldReady=false; imgGold.onload=()=>goldReady=true; imgGold.onerror=()=>goldReady=false; imgGold.src = 'bacteria-gold.png';
+  const imgToxic = new Image(); let toxicReady=false; imgToxic.onload=()=>toxicReady=true; imgToxic.onerror=()=>toxicReady=false; imgToxic.src = 'bacteria-toxic.png';
+
+  // simple WebAudio bleeps (no external files)
+  const AC = (window.AudioContext||window.webkitAudioContext) ? new (window.AudioContext||window.webkitAudioContext)() : null;
+  function beep(freq=440, dur=0.08, type='sine', vol=0.02){ if(!AC) return; const o=AC.createOscillator(); const g=AC.createGain(); o.type=type; o.frequency.value=freq; g.gain.value=vol; o.connect(g).connect(AC.destination); o.start(); o.stop(AC.currentTime+dur); }
+
+  // bokeh
+  const bokeh = [];
+  function initBokeh(){
+    bokeh.length = 0;
+    const n = Math.round((innerWidth*innerHeight)/28000);
+    for(let i=0;i<n;i++){
+      bokeh.push({ x: rand(0, bg.width), y: rand(0, bg.height), r: rand(8*DPR, 28*DPR), a: rand(.08,.22), vx: rand(-.08,.08)*DPR, vy: rand(-.04,.04)*DPR });
+    }
+  }
+  function drawBokeh(dt, now){
+    bgx.clearRect(0,0,bg.width,bg.height);
+
+    if(boss){
+      const base = bossMood==='sad' ? bossSadImg : bossImg;
+      if(base && base.complete && base.naturalWidth){
+        const scale = 0.9 + 0.04*Math.sin(now*0.0012);
+        const w = base.width  * scale * DPR;
+        const h = base.height * scale * DPR;
+        const cx = bg.width/2, cy = bg.height/2 + 20*DPR;
+        bgx.save(); bgx.globalAlpha = 0.95; bgx.translate(cx, cy); bgx.drawImage(base, -w/2, -h/2, w, h); bgx.restore();
+      }
+
+      // periodic boss attacks (shock rings)
+      bossAttackTimer -= dt; if(bossAttackTimer<=0){ spawnShock(); bossAttackTimer = rand(2600, 4200); }
+    }
+
+    for(const p of bokeh){
+      p.x += p.vx*dt; p.y += p.vy*dt;
+      if(p.x < -50 || p.x>bg.width+50) p.vx*=-1;
+      if(p.y < -50 || p.y>bg.height+50) p.vy*=-1;
+      bgx.beginPath(); bgx.globalAlpha = p.a; bgx.fillStyle = '#bfeaff';
+      bgx.arc(p.x,p.y,p.r,0,Math.PI*2); bgx.fill();
+    }
+    bgx.globalAlpha = 1;
+  }
+  initBokeh(); addEventListener('resize', initBokeh);
+
+  // UI refs
+  const hud = {
+    scoreEl: document.getElementById('score'),
+    levelEl: document.getElementById('level'),
+    timeBig: document.getElementById('timeBig'),
+    nextText: document.getElementById('nextText'),
+    nextFill: document.getElementById('nextFill'),
+    comboVal: document.getElementById('comboVal')
+  };
+  const overlay = document.getElementById('overlay');
+  const startPanel = document.getElementById('startPanel');
+  const levelPanel = document.getElementById('levelPanel');
+  const bossPanel = document.getElementById('bossPanel');
+  const gameOverPanel = document.getElementById('gameOverPanel');
+  const gameOverTitle = document.getElementById('gameOverTitle');
+  const finalScore = document.getElementById('finalScore');
+  const finalLevel = document.getElementById('finalLevel');
+  const lostImg = document.getElementById('lostImg');
+  const twoPResult = document.getElementById('twoPResult');
+
+  // buttons
+  const btnPain   = document.getElementById('btnPain');
+  const btnInfect = document.getElementById('btnInfect');
+  const btnShield = document.getElementById('btnShield');
+  const btnSlowmo = document.getElementById('btnSlowmo');
+  const pauseBtn  = document.getElementById('pauseBtn');
+  const restartBtn= document.getElementById('restartBtn');
+
+  // settings & hamburger
+  const controls = {
+    sizeMin: document.getElementById('sizeMin'),
+    sizeMax: document.getElementById('sizeMax'),
+    speedMul: document.getElementById('speedMul'),
+    spawnR:  document.getElementById('spawnR'),
+    maxConc: document.getElementById('maxConc'),
+    timeLimit: document.getElementById('timeLimit'),
+    twoP: document.getElementById('twoP'),
+    outs: {
+      sizeMin: document.getElementById('sizeMinOut'),
+      sizeMax: document.getElementById('sizeMaxOut'),
+      speedMul: document.getElementById('speedMulOut'),
+      spawnR: document.getElementById('spawnROut'),
+      maxConc: document.getElementById('maxConcOut'),
+      timeLimit: document.getElementById('timeLimitOut'),
+      twoP: document.getElementById('twoPOut')
+    },
+    applyBtn: document.getElementById('applyBtn'),
+    toggleBtn: document.getElementById('toggleBtn'),
+    box: document.getElementById('settings')
+  };
+  const menuBtn = document.getElementById('menuBtn');
+
+  function syncOutputs(){
+    controls.outs.sizeMin.textContent=controls.sizeMin.value;
+    controls.outs.sizeMax.textContent=controls.sizeMax.value;
+    controls.outs.speedMul.textContent=(+controls.speedMul.value).toFixed(2)+'x';
+    controls.outs.spawnR.textContent=(+controls.spawnR.value).toFixed(2);
+    controls.outs.maxConc.textContent=controls.maxConc.value;
+    controls.outs.timeLimit.textContent=controls.timeLimit.value;
+    controls.outs.twoP.textContent= +controls.twoP.value ? 'On' : 'Off';
+  }
+  syncOutputs();
+  ;['sizeMin','sizeMax','speedMul','spawnR','maxConc','timeLimit','twoP'].forEach(id=>controls[id].addEventListener('input', syncOutputs));
+  function applySettings(){
+    params.minSize=+controls.sizeMin.value;
+    params.maxSize=Math.max(+controls.sizeMax.value, params.minSize+4);
+    controls.sizeMax.value=params.maxSize;
+    params.speedMul=+controls.speedMul.value;
+    params.spawnRate=+controls.spawnR.value;
+    params.maxConcurrent=+controls.maxConc.value;
+    timeMax=+controls.timeLimit.value;
+    twoPlayer = !!(+controls.twoP.value);
+    if(!running) hud.timeBig.textContent = timeMax;
+
+    const b=controls.applyBtn, old=b.textContent;
+    b.textContent='Applied ✓'; b.classList.add('applied'); setTimeout(()=>{ b.textContent=old; b.classList.remove('applied'); },1200);
+  }
+  controls.applyBtn.onclick=applySettings;
+
+  function setCollapsed(collapsed){ controls.box.classList.toggle('collapsed', collapsed); menuBtn.setAttribute('aria-expanded', (!collapsed).toString()); }
+  menuBtn.addEventListener('click', ()=>{ const collapsed = controls.box.classList.contains('collapsed'); setCollapsed(!collapsed); });
+  controls.toggleBtn.onclick=()=> setCollapsed(true);
+  function initSettingsState(){ const small = window.matchMedia('(max-width: 720px)').matches; setCollapsed(small); }
+  initSettingsState(); addEventListener('resize', initSettingsState);
+
+  // coach + bubble
+  const coachImg = document.getElementById('coachImg');
+  const coachSrcs = { normal:'normal.png', healthy:'healthy.png', sick:'sick.png', level:'level.png', superhealthy:'superhealthy.png', supersick:'supersick.png' };
+  let coachState='normal';
+  function setCoach(state){ if(coachState===state) return; coachState=state; coachImg.classList.add('fade'); setTimeout(()=>{ coachImg.src=coachSrcs[state]||coachSrcs.normal; coachImg.classList.remove('fade'); },180); }
+  const bubble = document.getElementById('bubble');
+  const tipText = document.getElementById('tipText');
+  const TIPS = [
+    ["Pain relief","Sore throat pain can be eased with Septabene’s anesthetic effect."],
+    ["Dual action","Septabene reduces both inflammation and fights bacteria in the throat."],
+    ["Early use","Taking Septabene at the first sign of irritation may shorten recovery."],
+    ["Voice care","By soothing throat pain, Septabene supports clearer speech during illness."],
+    ["Local action","Septabene works directly where it hurts, targeting the throat lining."],
+    ["Less strain","Easing pain and swelling reduces coughing and discomfort while swallowing."],
+    ["Infection control","Septabene helps slow bacterial growth, lowering risk of complications."],
+    ["Short illness phase","Using Septabene during acute sore throat can speed up the healing window."],
+    ["Comfort support","Relief from burning and scratchy sensations improves overall rest."],
+    ["Immune partner","By reducing symptoms, Septabene supports the body’s immune fight."]
+  ];
+  function showTip(){ const t = pick(TIPS); bubble.style.display='block'; bubble.querySelector('b').textContent=t[0]; tipText.textContent=t[1]; }
+  let tipTimer=null; function startTipLoop(){ showTip(); clearInterval(tipTimer); tipTimer=setInterval(showTip, 9000); }
+
+  // ---------------------------------------------------------------- mechanics
+  const SCORE = { green:10, red:20, gold:40, toxic:15 };
+  const levelTarget = (n) => (n===1?60:(n===2?120:200));
+  const BOSS_TARGET = 220; // points needed to defeat boss
+  const ENERGY_FULL = 100, ENERGY_TTE = 20, ENERGY_DRAIN_PER_SEC = ENERGY_FULL/ENERGY_TTE;
+
+  let running=false, paused=false, boss=false, bossMood='normal';
+  let time=60, timeMax=60; let spawnCooldown=0;
+  let level=1, totalScore=0, levelScore=0, target=levelTarget(1);
+  let energy=ENERGY_FULL, health=0;
+  let twoPlayer=false, p1=0, p2=0;
+
+  // combos
+  let combo=0, comboTimer=0, bestCombo=0;
+
+  // achievements
+  const achievements = new Set();
+  function unlock(tag){ if(achievements.has(tag)) return; achievements.add(tag); burstConfetti(); beep(880,0.1,'square',0.03); bubble.style.display='block'; bubble.querySelector('b').textContent='Achievement!'; tipText.textContent=tag; setTimeout(()=>bubble.style.display='none', 2600); }
+
+  const CD = { pain:25000, infect:20000, shield:30000, slowmo:25000 };
+  let lastUse = { pain:-1e9, infect:-1e9, shield:-1e9, slowmo:-1e9 };
+  let shieldActive=false, slowmoActive=false; const shieldRing = document.getElementById('shieldRing');
+
+  const params = { minSize:+controls.sizeMin.value, maxSize:+controls.sizeMax.value, speedMul:+controls.speedMul.value, spawnRate:+controls.spawnR.value, maxConcurrent:+controls.maxConc.value };
+
+  // power handlers
+  function canUse(which){ return performance.now() - lastUse[which] >= CD[which]; }
+  function setCooldown(btn, ready){ btn.classList.toggle('cooldown', !ready); btn.disabled=!ready; }
+
+  btnPain.onclick = ()=>{ if(!running||!canUse('pain')||paused) return; lastUse.pain=performance.now(); energy=ENERGY_FULL; updateHUD(); beep(520,0.12,'triangle',0.03); };
+  btnInfect.onclick = ()=>{ if(!running||!canUse('infect')||paused) return; lastUse.infect=performance.now(); let reds=0; germs.forEach(g=>{ if((g.kind==='red'||g.kind==='toxic') && !g.dead){ g.squash(); reds++; }}); if(reds>0){ const pts=Math.min(reds*SCORE.red,240); addRawScore(pts, null); } beep(640,0.1,'square',0.03); };
+  btnShield.onclick = ()=>{ if(!running||!canUse('shield')||paused) return; lastUse.shield=performance.now(); shieldActive=true; shieldRing.classList.add('on'); setTimeout(()=>{ shieldActive=false; shieldRing.classList.remove('on'); }, 6000); beep(300,0.14,'sine',0.03); };
+  btnSlowmo.onclick = ()=>{ if(!running||!canUse('slowmo')||paused) return; lastUse.slowmo=performance.now(); slowmoActive=true; setTimeout(()=>slowmoActive=false, 5000); beep(420,0.1,'sawtooth',0.03); };
+
+  function updatePowerCooldowns(){ if(paused) return; const now=performance.now(); setCooldown(btnPain,   now-lastUse.pain   >= CD.pain); setCooldown(btnInfect, now-lastUse.infect >= CD.infect); setCooldown(btnShield, now-lastUse.shield >= CD.shield); setCooldown(btnSlowmo, now-lastUse.slowmo >= CD.slowmo); }
+
+  function energyColor(p){ const lerp=(a,b,t)=>a+(b-a)*t; function mix(c1,c2,t){const a=parseInt(c1.slice(1),16), b=parseInt(c2.slice(1),16); const r=Math.round(lerp((a>>16)&255,(b>>16)&255,t)), g=Math.round(lerp((a>>8)&255,(b>>8)&255,t)), bb=Math.round(lerp(a&255,b&255,t)); return `rgb(${r},${g},${bb})`; } return p>=0.5 ? mix('#41d36a','#ffd166',(1-p)/0.5) : mix('#ffd166','#ff6b6b',(0.5-p)/0.5); }
+
+  function updateHUD(){
+    hud.scoreEl.textContent = totalScore;
+    hud.levelEl.textContent = boss ? 'Boss' : level;
+    hud.timeBig.textContent = Math.ceil(time);
+    const p = Math.max(0, Math.min(1, energy/ENERGY_FULL));
+    const ef = document.getElementById('energyFill'); ef.style.transform=`scaleY(${p})`; ef.style.background=energyColor(p);
+    const kp = Math.max(0, Math.min(1, levelScore/target));
+    hud.nextFill.style.transform = `scaleX(${kp})`;
+    hud.nextText.textContent = `${levelScore} / ${target}`;
+    hud.comboVal.textContent = 'x'+combo;
+  }
+
+  function resetCooldowns(){ lastUse={pain:-1e9,infect:-1e9,shield:-1e9,slowmo:-1e9}; [btnPain,btnInfect,btnShield,btnSlowmo].forEach(b=>{ b.disabled=false; b.classList.remove('cooldown'); }); }
+  function resetGame(){ totalScore=0; levelScore=0; level=1; target=levelTarget(1); time=timeMax; energy=ENERGY_FULL; health=0; boss=false; bossMood='normal'; germs.clear(); pops.length=0; confetti.length=0; combo=0; comboTimer=0; bestCombo=0; p1=0; p2=0; setCoach('normal'); resetCooldowns(); updateHUD(); }
+  function bumpDifficulty(){ controls.speedMul.value = Math.min(2.0, (+controls.speedMul.value + 0.06)).toFixed(2); controls.spawnR.value   = Math.min(5.0, (+controls.spawnR.value + 0.10)).toFixed(2); controls.timeLimit.value = Math.max(40, (+controls.timeLimit.value - 1)); syncOutputs(); applySettings(); }
+  function showLevelBreak(completedLevel){ running = false; paused = false; startPanel.style.display = 'none'; gameOverPanel.style.display = 'none'; bossPanel.style.display = 'none'; levelPanel.style.display = 'block'; document.getElementById('levelTitle').textContent = `Level ${completedLevel} Complete!`; overlay.style.display = 'grid'; setCoach('level'); }
+  function levelUp(){ const completed = level; if (level >= 3) { startBossPlaceholder(); return; } level++; levelScore = 0; target = levelTarget(level); if(level===2) unlock('Shield unlocked'); if(level===3) unlock('Slow‑mo unlocked'); showLevelBreak(completed); }
+  function startBossPlaceholder(){ running=false; paused=false; boss=true; bossMood='normal'; levelPanel.style.display='none'; startPanel.style.display='none'; gameOverPanel.style.display='none'; bossPanel.style.display='block'; overlay.style.display='grid'; }
+  function bossDefeated(){ bossMood='sad'; endGame('Boss Defeated!'); unlock('Core neutralized'); }
+  window.bossDefeated = bossDefeated;
+
+  function addRawScore(add, who){ totalScore += add; levelScore += add; if(twoPlayer && who){ if(who===1) p1+=add; else p2+=add; } checkMilestones(); updateHUD(); if (boss) { if (levelScore >= target) bossDefeated(); } else { if (levelScore >= target) levelUp(); } }
+  function addScore(kind, who){ const add = (kind==='red'?SCORE.red:kind==='gold'?SCORE.gold:kind==='toxic'?SCORE.toxic:SCORE.green); addRawScore(add, who); }
+
+  function checkMilestones(){ if(totalScore>=200) unlock('200 pts'); if(bestCombo>=8) unlock('Combo x8'); if(level>=2) unlock('Level 2 reached'); }
+
+  // germs
+  const germs = new Set();
+  class Germ{
+    constructor(kind='green'){
+      const w=game.width, h=game.height, edge=['top','bottom','left','right'][(Math.random()*4)|0], margin=40*DPR;
+      const sizePx=rand(+controls.sizeMin.value, +controls.sizeMax.value), size=sizePx*DPR; this.w=size; this.h=size;
+      if(edge==='left'){this.x=-margin; this.y=rand(0,h); this.vx=rand(.4,1.1)*DPR; this.vy=rand(-.6,.6)*DPR;}
+      if(edge==='right'){this.x=w+margin; this.y=rand(0,h); this.vx=rand(-1.1,-.4)*DPR; this.vy=rand(-.6,.6)*DPR;}
+      if(edge==='top'){this.x=rand(0,w); this.y=-margin; this.vx=rand(-.6,.6)*DPR; this.vy=rand(.4,1.1)*DPR;}
+      if(edge==='bottom'){this.x=rand(0,w); this.y=h+margin; this.vx=rand(-.6,.6)*DPR; this.vy=rand(-1.1,-.4)*DPR;}
+      this.kind=kind; this.speedScale=+controls.speedMul.value*(1+0.04*(level-1)); this.rot=Math.random()*Math.PI*2; this.vr=rand(-.002,.002)*DPR; this.img=(kind==='red')?imgRed:(kind==='gold'? (goldReady?imgGold:imgGreen) : (kind==='toxic'?(toxicReady?imgToxic:imgRed):imgGreen)); this.dead=false; this.deadTime=0; this.hitboxScale=.42; this.floatPhase=rand(0,6.28);
+      // prev frames for slow-mo trails
+      this.prev=[];
+    }
+    update(dt){ const float=Math.sin(performance.now()*0.003+this.floatPhase)*.15*DPR; 
+      // store previous frames
+      this.prev.unshift({x:this.x, y:this.y, rot:this.rot}); if(this.prev.length>6) this.prev.pop();
+      this.x+=this.vx*this.speedScale*dt; this.y+=(this.vy+float)*this.speedScale*dt; this.rot+=this.vr*dt; if(this.x<-200*DPR||this.x>game.width+200*DPR||this.y<-200*DPR||this.y>game.height+200*DPR) germs.delete(this); if(this.dead){ this.deadTime+=dt; if(this.deadTime>450) germs.delete(this); } }
+    draw(ctx){ const s=this.w; if(!(this.img && this.img.complete && this.img.naturalWidth)) return; 
+      // slow-mo ghost trail
+      if(slowmoActive && !this.dead){ for(let i=1;i<this.prev.length;i++){ const p=this.prev[i]; const k=(this.prev.length-i)/this.prev.length; ctx.save(); ctx.globalAlpha=0.08*k; ctx.translate(p.x,p.y); ctx.rotate(p.rot); ctx.drawImage(this.img,-s/2,-s/2,s,s); ctx.restore(); } }
+      ctx.save(); ctx.translate(this.x,this.y); ctx.rotate(this.rot); ctx.drawImage(this.img,-s/2,-s/2,s,s); ctx.restore(); }
+    contains(px,py){ const dx=px-this.x, dy=py-this.y, r=this.w*this.hitboxScale; return (dx*dx+dy*dy)<=r*r; }
+    squash(){ if(this.dead) return false; this.dead=true; this.img=(this.kind==='red'||this.kind==='toxic')?imgRedDead:imgGreenDead; this.vx=this.vy=this.vr=0; spawnPop(this.x,this.y,this.w*0.55); return true; }
+  }
+
+  // boss shockwaves (projectiles you should avoid tapping on – they drain energy)
+  const shocks=[]; let bossAttackTimer=3200;
+  function spawnShock(){ const cx=bg.width/2, cy=bg.height/2+20*DPR; shocks.push({x:cx,y:cy,r:12*DPR,t:0}); beep(200,0.08,'sine',0.02); }
+  function updateShocks(dt){ for(let i=shocks.length-1;i>=0;i--){ const s=shocks[i]; s.t+=dt; s.r += 0.22*dt; fxx.save(); fxx.globalAlpha=0.35; fxx.strokeStyle='#7ed3ff'; fxx.lineWidth=4*DPR; fxx.beginPath(); fxx.arc(s.x,s.y,s.r,0,Math.PI*2); fxx.stroke(); fxx.restore(); if(s.r>Math.max(bg.width,bg.height)) shocks.splice(i,1); } }
+
+  // FX
+  const pops=[]; function spawnPop(x,y,r){ pops.push({x,y,r,t:0}); }
+  const confetti=[]; function burstConfetti(){ const N=110; for(let i=0;i<N;i++){ confetti.push({ x:rand(fx.width*0.25,fx.width*0.75), y:rand(-40,40), vx:rand(-0.2,0.2)*DPR, vy:rand(0.05,0.35)*DPR, s:rand(6*DPR,14*DPR), a:rand(0.8,1), color:pick(['#ffcd4d','#8ef6a0','#7ed3ff','#ff8ab6','#fff']), spin:rand(-1,1), t:0}); } }
+  function drawFX(dt){
+    for(let i=pops.length-1;i>=0;i--){ const p=pops[i]; p.t+=dt; const k=p.t/420; if(k>=1){pops.splice(i,1);continue;} fxx.globalAlpha=1-k; fxx.lineWidth=6*DPR*(1-k); fxx.strokeStyle='rgba(255,255,255,.8)'; fxx.beginPath(); fxx.arc(p.x,p.y,p.r*k,0,Math.PI*2); fxx.stroke(); fxx.globalAlpha=1; }
+    for(let i=confetti.length-1;i>=0;i--){ const c=confetti[i]; c.vy+=0.0006*dt; c.vx+=Math.sin(c.t*0.02)*0.005*dt; c.x+=c.vx*dt; c.y+=c.vy*dt; c.t+=dt; fxx.save(); fxx.translate(c.x,c.y); fxx.rotate(c.t*0.01*c.spin); fxx.globalAlpha=c.a; fxx.fillStyle=c.color; fxx.fillRect(-c.s/2,-c.s/2,c.s,c.s*0.6); fxx.restore(); if(c.y>fx.height+40) confetti.splice(i,1); }
+  }
+
+  // input
+  function toCanvas(evt, canvas){ const rect=canvas.getBoundingClientRect(); const x=((evt.touches?evt.touches[0].clientX:evt.clientX)-rect.left)*DPR; const y=((evt.touches?evt.touches[0].clientY:evt.clientY)-rect.top)*DPR; return {x,y}; }
+  function evaluateCoach(){ if(health>=55)setCoach('superhealthy'); else if(health>=20)setCoach('healthy'); else if(health<=-55)setCoach('supersick'); else if(health<=-20)setCoach('sick'); else setCoach('normal'); }
+
+  function registerHit(){ combo++; bestCombo=Math.max(bestCombo, combo); comboTimer = 1800; if(combo>1){ addRawScore(combo*5, null); beep(700+combo*20, 0.045,'square',0.02); } hud.comboVal.textContent = 'x'+combo; }
+
+  function onPress(evt){
+    if(!running||paused) return;
+    const {x,y}=toCanvas(evt,game);
+
+    // tapping inside an expanding shock wave drains energy unless shielded
+    if(boss){ for(const s of shocks){ const dx=x-s.x, dy=y-s.y, rr=s.r*s.r; if(dx*dx+dy*dy <= rr){ if(!shieldActive){ energy=clamp(energy-12,0,ENERGY_FULL); health=clamp(health-15,-100,100); } game.animate([{transform:'translateX(0)'},{transform:'translateX(-3px)'},{transform:'translateX(3px)'},{transform:'translateX(0)'}],{duration:120}); updateHUD(); return; } } }
+
+    let hit=null; germs.forEach(g=>{ if(!hit&&g.contains(x,y)) hit=g; });
+    if(hit && hit.squash()){
+      const who = twoPlayer ? (x < game.width/2 ? 1 : 2) : null;
+      addScore(hit.kind, who);
+      health=clamp(health+(hit.kind==='toxic'?-18:18),-100,100);
+      if(hit.kind==='gold') energy=clamp(energy+8,0,ENERGY_FULL);
+      else energy=clamp(energy+4,0,ENERGY_FULL);
+      hud.scoreEl.animate([{transform:'scale(1)'},{transform:'scale(1.1)'},{transform:'scale(1)'}],{duration:300,easing:'cubic-bezier(.2,.8,.2,1)'});
+      registerHit();
+      beep(540,0.05,'triangle',0.02);
+      updateHUD();
+    } else {
+      combo=0; hud.comboVal.textContent='x0';
+      health=clamp(health-20,-100,100);
+      game.animate([{transform:'translateX(0)'},{transform:'translateX(-3px)'},{transform:'translateX(3px)'},{transform:'translateX(0)'}],{duration:120});
+      beep(180,0.06,'sine',0.02);
+    }
+    evaluateCoach();
+  }
+  game.addEventListener('mousedown', onPress);
+  game.addEventListener('touchstart', e=>onPress(e), {passive:true});
+
+  // loop
+  let last=performance.now();
+  function loop(){
+    const now=performance.now(); let dt=Math.max(0, Math.min(66, now-last)); last=now;
+    if(slowmoActive) dt *= 0.45;
+
+    drawBokeh(dt, now);
+    fxx.clearRect(0,0,fx.width,fx.height);
+    drawFX(dt);
+    updateShocks(dt);
+
+    if(!running){ requestAnimationFrame(loop); return; }
+
+    gtx.clearRect(0,0,game.width,game.height);
+
+    if(!paused){
+      spawnCooldown -= dt;
+      const spawnEvery = 1000 / (+controls.spawnR.value);
+      if(spawnCooldown<=0 && germs.size < (+controls.maxConc.value)){
+        // base spawn (only use gold/toxic if their images are ready)
+        const kindRand = Math.random();
+        let kind = 'green';
+        if(kindRand < 0.28) kind='red';
+        else if(kindRand < 0.33 && goldReady) kind='gold';
+        else if(kindRand < 0.40 && toxicReady) kind='toxic';
+        germs.add(new Germ(kind));
+        // occasional double spawn
+        if(Math.random()<0.45 && germs.size < (+controls.maxConc.value)) germs.add(new Germ(Math.random()<0.35?'red':'green'));
+        spawnCooldown = rand(spawnEvery*.6, spawnEvery*1.2);
+      }
+      germs.forEach(g=> g.update(dt));
+
+      // dynamic difficulty: slightly ramp with score
+      const ramp = Math.min(1.8, 1 + totalScore/800);
+      params.spawnRate = +controls.spawnR.value * ramp;
+
+      // timers
+      time -= dt/1000;
+      // freeze energy while shield is active
+      if(!shieldActive) energy = clamp(energy - (ENERGY_DRAIN_PER_SEC*(dt/1000)), 0, ENERGY_FULL);
+
+      if(time<=0){ time=0; updateHUD(); endGame('Time Up!'); }
+      else if(energy<=0){ updateHUD(); endGame('Out of Energy!','energy'); }
+
+      // combo decay
+      if(comboTimer>0) comboTimer-=dt; else if(combo>0){ combo=0; hud.comboVal.textContent='x0'; }
+    }
+
+    germs.forEach(g=> g.draw(gtx));
+
+    updatePowerCooldowns();
+    updateHUD();
+    requestAnimationFrame(loop);
+  }
+
+  // control
+  function startGame(){ applySettings(); resetGame(); running=true; paused=false; overlay.style.display='none'; last=performance.now(); if(AC && AC.state==='suspended'){ AC.resume(); } requestAnimationFrame(loop); startTipLoop(); }
+  function startNextLevel(){ bumpDifficulty(); time=timeMax; energy=ENERGY_FULL; setCoach('normal'); overlay.style.display='none'; running=true; paused=false; last=performance.now(); }
+  function startBoss(){ boss = true; running = true; paused = false; overlay.style.display = 'none'; time = Math.max(45, timeMax); levelScore = 0; target = BOSS_TARGET; bossAttackTimer=2200; updateHUD(); }
+  function endGame(title, reason){ running=false; gameOverTitle.textContent=title; finalScore.textContent=totalScore; finalLevel.textContent=boss?'Boss':level; lostImg.style.display=(reason==='energy')?'block':'none'; overlay.style.display='grid'; startPanel.style.display='none'; levelPanel.style.display='none'; bossPanel.style.display='none'; gameOverPanel.style.display='block'; if(twoPlayer){ twoPResult.style.display='block'; twoPResult.textContent=`P1: ${p1}  •  P2: ${p2}  →  ${p1===p2?'Draw':(p1>p2?'P1 wins!':'P2 wins!')}`; } else { twoPResult.style.display='none'; } }
+
+  document.getElementById('startBtn').onclick = startGame;
+  document.getElementById('playAgainBtn').onclick = startGame;
+  document.getElementById('closePanelBtn').onclick = ()=>{ overlay.style.display='grid'; startPanel.style.display='block'; levelPanel.style.display='none'; bossPanel.style.display='none'; gameOverPanel.style.display='none'; };
+  document.getElementById('nextLevelBtn').onclick = startNextLevel;
+  document.getElementById('startBossBtn').onclick = ()=>{ bossPanel.style.display='none'; overlay.style.display='none'; startBoss(); };
+
+  pauseBtn.onclick = ()=>{ if(!running) return; paused=!paused; pauseBtn.textContent = paused ? 'Resume' : 'Pause'; last=performance.now(); };
+  restartBtn.onclick = ()=>{ running=false; overlay.style.display='grid'; resetGame(); startPanel.style.display='block'; levelPanel.style.display='none'; bossPanel.style.display='none'; gameOverPanel.style.display='none'; };
+
+  // Fail condition: overrun
+  setInterval(()=>{ if(running && !paused && germs.size>+controls.maxConc.value*1.3){ endGame('Petri Dish Overrun!'); } }, 2000);
+
+  requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>
