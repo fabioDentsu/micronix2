@@ -177,7 +177,7 @@
   @media (max-width: 480px){ .hud{ font-size:9px; padding:6px 8px; gap:6px } .hud .thinBar{ width:84px } .powers{ padding:7px; gap:6px; top:108px } .badge{ font-size:10px; padding:3px 6px } .timeBig{ font-size:20px } .power{ padding:7px 9px; font-size:11px } .btn.small{ padding:6px 8px; font-size:11px } }
 
   /* Shield visual ring */
-  .shieldRing{ position:fixed; inset:8px; border-radius:24px; pointer-events:none; box-shadow:0 0 0 4px rgba(62,255,170,.35), 0 0 40px 12px rgba(62,255,170,.16) inset; opacity:0; transition:opacity .2s ease; z-index:8; }
+  .shieldRing{ position:fixed; inset:8px; border-radius:24px; pointer-events:none; box-shadow:0 0 0 4px rgba(62, 255, 171, 0.581), 0 0 40px 12px rgba(62,255,170,.3) inset; opacity:0; transition:opacity .2s ease; z-index:8; }
   .shieldRing.on{ opacity:1; }
 </style>
 </head>
@@ -226,7 +226,7 @@
     <div class="field"><label for="spawnR">Spawn Rate (germs/sec)</label><output id="spawnROut">0.80</output><input id="spawnR" type="range" min="0.4" max="5" step="0.05" value="0.80"></div>
     <div class="field"><label for="maxConc">Max Concurrent</label><output id="maxConcOut">40</output><input id="maxConc" type="range" min="10" max="160" step="5" value="40"></div>
     <div class="field"><label for="timeLimit">Time Limit (sec)</label><output id="timeLimitOut">75</output><input id="timeLimit" type="range" min="20" max="120" step="5" value="75"></div>
-    <div class="field"><label for="twoP">2‑Player (split screen)</label><output id="twoPOut">Off</output><input id="twoP" type="range" min="0" max="1" step="1" value="0"></div>
+    <div class="field"><label for="twoP">2-Player (split screen)</label><output id="twoPOut">Off</output><input id="twoP" type="range" min="0" max="1" step="1" value="0"></div>
     <div class="row"><button class="btn" id="applyBtn">Apply</button><button class="btn ghost" id="toggleBtn">Close</button></div>
   </aside>
 
@@ -509,7 +509,7 @@
   function resetGame(){ totalScore=0; levelScore=0; level=1; target=levelTarget(1); time=timeMax; energy=ENERGY_FULL; health=0; boss=false; bossMood='normal'; germs.clear(); pops.length=0; confetti.length=0; combo=0; comboTimer=0; bestCombo=0; p1=0; p2=0; setCoach('normal'); resetCooldowns(); updateHUD(); }
   function bumpDifficulty(){ controls.speedMul.value = Math.min(2.0, (+controls.speedMul.value + 0.06)).toFixed(2); controls.spawnR.value   = Math.min(5.0, (+controls.spawnR.value + 0.10)).toFixed(2); controls.timeLimit.value = Math.max(40, (+controls.timeLimit.value - 1)); syncOutputs(); applySettings(); }
   function showLevelBreak(completedLevel){ running = false; paused = false; startPanel.style.display = 'none'; gameOverPanel.style.display = 'none'; bossPanel.style.display = 'none'; levelPanel.style.display = 'block'; document.getElementById('levelTitle').textContent = `Level ${completedLevel} Complete!`; overlay.style.display = 'grid'; setCoach('level'); }
-  function levelUp(){ const completed = level; if (level >= 3) { startBossPlaceholder(); return; } level++; levelScore = 0; target = levelTarget(level); if(level===2) unlock('Shield unlocked'); if(level===3) unlock('Slow‑mo unlocked'); showLevelBreak(completed); }
+  function levelUp(){ const completed = level; if (level >= 3) { startBossPlaceholder(); return; } level++; levelScore = 0; target = levelTarget(level); if(level===2) unlock('Shield unlocked'); if(level===3) unlock('Slow-mo unlocked'); showLevelBreak(completed); }
   function startBossPlaceholder(){ running=false; paused=false; boss=true; bossMood='normal'; levelPanel.style.display='none'; startPanel.style.display='none'; gameOverPanel.style.display='none'; bossPanel.style.display='block'; overlay.style.display='grid'; }
   function bossDefeated(){ bossMood='sad'; endGame('Boss Defeated!'); unlock('Core neutralized'); }
   window.bossDefeated = bossDefeated;
@@ -556,6 +556,22 @@
   function drawFX(dt){
     for(let i=pops.length-1;i>=0;i--){ const p=pops[i]; p.t+=dt; const k=p.t/420; if(k>=1){pops.splice(i,1);continue;} fxx.globalAlpha=1-k; fxx.lineWidth=6*DPR*(1-k); fxx.strokeStyle='rgba(255,255,255,.8)'; fxx.beginPath(); fxx.arc(p.x,p.y,p.r*k,0,Math.PI*2); fxx.stroke(); fxx.globalAlpha=1; }
     for(let i=confetti.length-1;i>=0;i--){ const c=confetti[i]; c.vy+=0.0006*dt; c.vx+=Math.sin(c.t*0.02)*0.005*dt; c.x+=c.vx*dt; c.y+=c.vy*dt; c.t+=dt; fxx.save(); fxx.translate(c.x,c.y); fxx.rotate(c.t*0.01*c.spin); fxx.globalAlpha=c.a; fxx.fillStyle=c.color; fxx.fillRect(-c.s/2,-c.s/2,c.s,c.s*0.6); fxx.restore(); if(c.y>fx.height+40) confetti.splice(i,1); }
+    /* GAMEPAD reticle render (overlays on fx) */
+    if(gamepadState.visible){
+      fxx.save();
+      fxx.translate(gamepadState.cx, gamepadState.cy);
+      fxx.globalAlpha = 0.9;
+      fxx.lineWidth = 2*DPR;
+      fxx.strokeStyle = '#ffffff';
+      fxx.beginPath();
+      fxx.arc(0,0,10*DPR,0,Math.PI*2);
+      fxx.stroke();
+      fxx.beginPath();
+      fxx.moveTo(-6*DPR,0); fxx.lineTo(6*DPR,0);
+      fxx.moveTo(0,-6*DPR); fxx.lineTo(0,6*DPR);
+      fxx.stroke();
+      fxx.restore();
+    }
   }
 
   // input
@@ -592,6 +608,95 @@
   }
   game.addEventListener('mousedown', onPress);
   game.addEventListener('touchstart', e=>onPress(e), {passive:true});
+
+  /* =========================
+     GAMEPAD SUPPORT (DualSense/standard mapping)
+     ========================= */
+  const gamepadState = {
+    gp: null,
+    prevButtons: [],
+    cx: 0, cy: 0,    // cursor in canvas (device pixels)
+    visible: false
+  };
+  function pickGamepad(){
+    const pads = navigator.getGamepads ? navigator.getGamepads() : [];
+    for (const p of pads) if (p && p.connected) return p;
+    return null;
+  }
+  addEventListener('gamepadconnected', () => { gamepadState.gp = pickGamepad(); gamepadState.visible = true; });
+  addEventListener('gamepaddisconnected', () => { gamepadState.gp = null; gamepadState.visible = false; });
+
+  function initGamepadCursor(){
+    gamepadState.cx = game.width/2;
+    gamepadState.cy = game.height/2;
+  }
+  initGamepadCursor(); addEventListener('resize', initGamepadCursor);
+
+  function edgePressed(i, buttons, prev){
+    const pressed = !!buttons[i]?.pressed;
+    const was = !!prev[i];
+    return pressed && !was;
+  }
+
+  function synthClickAtCanvas(xDP, yDP){
+    const rect = game.getBoundingClientRect();
+    const clientX = rect.left + (xDP / DPR);
+    const clientY = rect.top  + (yDP / DPR);
+    onPress({ clientX, clientY });
+  }
+
+  function handleGamepad(dtMs){
+    const gp = gamepadState.gp || pickGamepad();
+    if(!gp) return;
+    gamepadState.gp = gp;
+    gamepadState.visible = true;
+
+    const dt = Math.min(dtMs, 50) / 1000; // seconds
+    const ax = gp.axes || [];
+    const btn = gp.buttons || [];
+    const dead = 0.15;
+    const dz = v => Math.abs(v) < dead ? 0 : v;
+
+    // Left stick drives cursor
+    const vx = dz(ax[0] || 0);
+    const vy = dz(ax[1] || 0);
+    const speed = 1100 * DPR; // px/sec in canvas pixels
+    gamepadState.cx = clamp(gamepadState.cx + vx * speed * dt, 0, game.width);
+    gamepadState.cy = clamp(gamepadState.cy + vy * speed * dt, 0, game.height);
+
+    // D-pad (12 up, 13 down, 14 left, 15 right) nudges cursor
+    const nudge = 420 * DPR * dt;
+    if (btn[12]?.pressed) gamepadState.cy = clamp(gamepadState.cy - nudge, 0, game.height);
+    if (btn[13]?.pressed) gamepadState.cy = clamp(gamepadState.cy + nudge, 0, game.height);
+    if (btn[14]?.pressed) gamepadState.cx = clamp(gamepadState.cx - nudge, 0, game.width);
+    if (btn[15]?.pressed) gamepadState.cx = clamp(gamepadState.cx + nudge, 0, game.width);
+
+    // Cross (X) -> tap
+    if (edgePressed(0, btn, gamepadState.prevButtons)){
+      synthClickAtCanvas(gamepadState.cx, gamepadState.cy);
+    }
+    // Circle (O) -> toggle settings panel (optional quality-of-life)
+    if (edgePressed(1, btn, gamepadState.prevButtons)){
+      const collapsed = controls.box.classList.contains('collapsed');
+      if (collapsed) controls.box.classList.remove('collapsed'); else controls.box.classList.add('collapsed');
+    }
+    // Square -> Disinfection
+    if (edgePressed(2, btn, gamepadState.prevButtons)) btnInfect.onclick();
+    // Triangle -> Pain relief (full energy)
+    if (edgePressed(3, btn, gamepadState.prevButtons)) btnPain.onclick();
+    // L1 -> Shield
+    if (edgePressed(4, btn, gamepadState.prevButtons)) btnShield.onclick();
+    // R1 -> Slow motion
+    if (edgePressed(5, btn, gamepadState.prevButtons)) btnSlowmo.onclick();
+    // Options -> Pause/Resume
+    if (edgePressed(9, btn, gamepadState.prevButtons)) pauseBtn.onclick();
+    // Create/Share -> Restart (from running state shows overlay)
+    if (edgePressed(8, btn, gamepadState.prevButtons)) restartBtn.onclick();
+
+    // Save button states for edge detection
+    gamepadState.prevButtons = btn.map(b => !!b?.pressed);
+  }
+  /* ========================= */
 
   // loop
   let last=performance.now();
@@ -643,13 +748,16 @@
 
     germs.forEach(g=> g.draw(gtx));
 
+    // poll controller last so input feels snappy over current frame
+    handleGamepad(dt);
+
     updatePowerCooldowns();
     updateHUD();
     requestAnimationFrame(loop);
   }
 
   // control
-  function startGame(){ applySettings(); resetGame(); running=true; paused=false; overlay.style.display='none'; last=performance.now(); if(AC && AC.state==='suspended'){ AC.resume(); } requestAnimationFrame(loop); startTipLoop(); }
+  function startGame(){ applySettings(); resetGame(); initGamepadCursor(); gamepadState.visible = !!pickGamepad(); running=true; paused=false; overlay.style.display='none'; last=performance.now(); if(AC && AC.state==='suspended'){ AC.resume(); } requestAnimationFrame(loop); startTipLoop(); }
   function startNextLevel(){ bumpDifficulty(); time=timeMax; energy=ENERGY_FULL; setCoach('normal'); overlay.style.display='none'; running=true; paused=false; last=performance.now(); }
   function startBoss(){ boss = true; running = true; paused = false; overlay.style.display = 'none'; time = Math.max(45, timeMax); levelScore = 0; target = BOSS_TARGET; bossAttackTimer=2200; updateHUD(); }
   function endGame(title, reason){ running=false; gameOverTitle.textContent=title; finalScore.textContent=totalScore; finalLevel.textContent=boss?'Boss':level; lostImg.style.display=(reason==='energy')?'block':'none'; overlay.style.display='grid'; startPanel.style.display='none'; levelPanel.style.display='none'; bossPanel.style.display='none'; gameOverPanel.style.display='block'; if(twoPlayer){ twoPResult.style.display='block'; twoPResult.textContent=`P1: ${p1}  •  P2: ${p2}  →  ${p1===p2?'Draw':(p1>p2?'P1 wins!':'P2 wins!')}`; } else { twoPResult.style.display='none'; } }
